@@ -39,6 +39,7 @@ Several things happen when you do:
 
 """
 
+import itertools
 import os
 import sys
 import warnings
@@ -593,6 +594,57 @@ def Geos(**keywords):
     """
     keywords['type'] = 'geos'
     return CreateDatasource(keywords)
+
+def Python(**keywords):
+    """Create a Python Datasource.
+
+    >>> from mapnik import Python, PythonDatasource
+    >>> datasource = Python('PythonDataSource')
+    >>> lyr = Layer('Python datasource')
+    >>> lyr.datasource = datasource
+    """
+    keywords['type'] = 'python'
+    return CreateDatasource(keywords)
+
+class PythonDatasource(object):
+    """A base class for a Python data source.
+
+    Optional arguments:
+      envelope -- a 4-tuple giving the (minx, miny, maxx, maxy) envelope of the data source
+      geometry_type -- one of the DataGeometryType enumeration values (default Point)
+      data_type -- one of the DataType enumerations (default Vector)
+    """
+    def __init__(self, envelope=None, geometry_type=None, data_type=None):
+        self.envelope = envelope or (-180, -90, 180, 90)
+        self.geometry_type = geometry_type or DataGeometryType.Point
+        self.data_type = data_type or DataType.Vector
+
+    def features(self, query):
+        """Return an iterable which yields instances of Feature for features within the passed query.
+        
+        Required arguments:
+          query -- a Query instance specifying the region for which features should be returned
+        """
+        return None
+
+    def features_at_point(self, point):
+        """Rarely uses. Return an iterable which yields instances of Feature for the specified point."""
+        return None
+
+    @classmethod
+    def wkb_features(cls, keys, features):
+        ctx = Context()
+        [ctx.push(x) for x in keys]
+
+        def make_it(feat, idx):
+            f = Feature(ctx, idx)
+            geom, attrs = feat
+            f.add_geometries_from_wkb(geom)
+            for k, v in attrs.iteritems():
+                f[k] = v
+            return f
+
+        return itertools.imap(make_it, features, itertools.count(1))
 
 class _TextSymbolizer(TextSymbolizer,_injector):
     @property
