@@ -50,7 +50,9 @@ class ConcentricCircles(object):
 
 class TestDatasource(mapnik.PythonDatasource):
     def __init__(self):
-        super(TestDatasource, self).__init__(geometry_type=mapnik.DataGeometryType.Polygon)
+        super(TestDatasource, self).__init__(
+                geometry_type=mapnik.DataGeometryType.Polygon
+        )
 
     def features(self, query):
         # Get the query bounding-box as a shapely bounding box
@@ -62,19 +64,20 @@ class TestDatasource(mapnik.PythonDatasource):
             features = ConcentricCircles(centre, bounding_box, 0.5)
         )
 
-m = mapnik.Map(640, 320)
+if __name__ == '__main__':
+    m = mapnik.Map(640, 320)
 
-m.background = mapnik.Color('white')
-s = mapnik.Style()
-r = mapnik.Rule()
-r.symbols.append(mapnik.LineSymbolizer())
-s.rules.append(r)
-m.append_style('point_style',s)
-ds = mapnik.Python(factory='TestDatasource')
-layer = mapnik.Layer('python')
-layer.datasource = ds
-layer.styles.append('point_style')
-m.layers.append(layer)
-box = mapnik.Box2d(-60, -60, 0, -30)
-m.zoom_to_box(box)
-mapnik.render_to_file(m,'map.png', 'png')
+    m.background = mapnik.Color('white')
+    s = mapnik.Style()
+    r = mapnik.Rule()
+    r.symbols.append(mapnik.LineSymbolizer())
+    s.rules.append(r)
+    m.append_style('point_style',s)
+    ds = mapnik.Python(factory='TestDatasource')
+    layer = mapnik.Layer('python')
+    layer.datasource = ds
+    layer.styles.append('point_style')
+    m.layers.append(layer)
+    box = mapnik.Box2d(-60, -60, 0, -30)
+    m.zoom_to_box(box)
+    mapnik.render_to_file(m,'map.png', 'png')

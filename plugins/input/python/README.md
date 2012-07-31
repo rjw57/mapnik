@@ -32,11 +32,15 @@ geometry with an appropriate level of detail for the output resolution.
 
 ## Initialization
 
-Only the `factory` argument is required. This is of the form
+Only the `factory` parameter is required. This is of the form
 `[module:]callable`. If `module` is present then `module` will be imported and
 its attribute named `callable` will be used as a factory callable. If `module`
-is omitted, then `__main__` is used. The callable should return an object with
-the following required attributes:
+is omitted, then `__main__` is used. Any other parameter aside from `factory` or
+`type` will be passed directly to the callable as keyword arguments. Note that
+these will always be passed as strings even if the parameter can be parsed as an
+integer of floating point value.
+
+The callable should return an object with the following required attributes:
 
 * `envelope` - a 4-tuple giving the (minx, miny, maxx, maxy) extent of the
   datasource;
@@ -76,20 +80,20 @@ constructing features for you:
   representation of the feature and the second element is a dictionary mapping
   keys to values.
 
-# Issues
+# Caveats
 
-* Currently attempting to load an XML stylesheet which references the Python
-  plugin causes deadlock.
+* If used directly from C++, `Py_Initialize()` must have been called before the
+  plugin is loaded to initialise the interpreter correctly.
 
-* If used from C++, `Py_Initialize()` must have been called before the plugin
-  is loaded.
-
-* When inside the interpreter the global interpreter lock is held and so
-  multi-threaded rendering performance may suffer.
+* When inside the interpreter the global interpreter lock is held each time a
+  feature is fetched and so multi-threaded rendering performance may suffer. You
+  can mitigate this by making sure that the feature iterator yields its value as
+  quickly as possible, potentially from an in-memory buffer filled fom another
+  process over IPC.
 
 # Examples
 
-In XML (currently loading this from Python causes deadlock):
+In XML:
 
 ```xml
 <?xml version="1.0" encoding="utf-8"?>
@@ -129,23 +133,24 @@ class TestDatasource(mapnik.PythonDatasource):
             )
         )
 
-m = mapnik.Map(1280,1024)
-m.background = mapnik.Color('white')
-s = mapnik.Style()
-r = mapnik.Rule()
-r.symbols.append(mapnik.PointSymbolizer())
-t = mapnik.TextSymbolizer(mapnik.Expression("[label]"),"DejaVu Sans Book",10,mapnik.Color('black'))
-t.displacement = (5,5)
-r.symbols.append(t)
-s.rules.append(r)
-m.append_style('point_style',s)
-ds = mapnik.Python(factory='TestDatasource')
-layer = mapnik.Layer('python')
-layer.datasource = ds
-layer.styles.append('point_style')
-m.layers.append(layer)
-m.zoom_all()
-mapnik.render_to_file(m,'map.png', 'png')
+if __name__ == '__main__':
+    m = mapnik.Map(1280,1024)
+    m.background = mapnik.Color('white')
+    s = mapnik.Style()
+    r = mapnik.Rule()
+    r.symbols.append(mapnik.PointSymbolizer())
+    t = mapnik.TextSymbolizer(mapnik.Expression("[label]"),"DejaVu Sans Book",10,mapnik.Color('black'))
+    t.displacement = (5,5)
+    r.symbols.append(t)
+    s.rules.append(r)
+    m.append_style('point_style',s)
+    ds = mapnik.Python(factory='TestDatasource')
+    layer = mapnik.Layer('python')
+    layer.datasource = ds
+    layer.styles.append('point_style')
+    m.layers.append(layer)
+    m.zoom_all()
+    mapnik.render_to_file(m,'map.png', 'png')
 ```
 
 A more complex Python example which makes use of iterators to generate geometry
@@ -216,20 +221,21 @@ class TestDatasource(mapnik.PythonDatasource):
             features = ConcentricCircles(centre, bounding_box, 0.5)
         )
 
-m = mapnik.Map(640, 320)
+if __name__ == '__main__':
+    m = mapnik.Map(640, 320)
 
-m.background = mapnik.Color('white')
-s = mapnik.Style()
-r = mapnik.Rule()
-r.symbols.append(mapnik.LineSymbolizer())
-s.rules.append(r)
-m.append_style('point_style',s)
-ds = mapnik.Python(factory='TestDatasource')
-layer = mapnik.Layer('python')
-layer.datasource = ds
-layer.styles.append('point_style')
-m.layers.append(layer)
-box = mapnik.Box2d(-60, -60, 0, -30)
-m.zoom_to_box(box)
-mapnik.render_to_file(m,'map.png', 'png')
+    m.background = mapnik.Color('white')
+    s = mapnik.Style()
+    r = mapnik.Rule()
+    r.symbols.append(mapnik.LineSymbolizer())
+    s.rules.append(r)
+    m.append_style('point_style',s)
+    ds = mapnik.Python(factory='TestDatasource')
+    layer = mapnik.Layer('python')
+    layer.datasource = ds
+    layer.styles.append('point_style')
+    m.layers.append(layer)
+    box = mapnik.Box2d(-60, -60, 0, -30)
+    m.zoom_to_box(box)
+    mapnik.render_to_file(m,'map.png', 'png')
 ```

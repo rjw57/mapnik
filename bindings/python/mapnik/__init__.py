@@ -610,12 +610,12 @@ class PythonDatasource(object):
     """A base class for a Python data source.
 
     Optional arguments:
-      envelope -- a 4-tuple giving the (minx, miny, maxx, maxy) envelope of the data source
-      geometry_type -- one of the DataGeometryType enumeration values (default Point)
-      data_type -- one of the DataType enumerations (default Vector)
+      envelope -- a mapnik.Box2d (minx, miny, maxx, maxy) envelope of the data source, default (-180,-90,180,90)
+      geometry_type -- one of the DataGeometryType enumeration values, default Point
+      data_type -- one of the DataType enumerations, default Vector
     """
     def __init__(self, envelope=None, geometry_type=None, data_type=None):
-        self.envelope = envelope or (-180, -90, 180, 90)
+        self.envelope = envelope or Box2d(-180, -90, 180, 90)
         self.geometry_type = geometry_type or DataGeometryType.Point
         self.data_type = data_type or DataType.Vector
 
@@ -633,6 +633,24 @@ class PythonDatasource(object):
 
     @classmethod
     def wkb_features(cls, keys, features):
+        """A convenience function to wrap an iterator yielding pairs of WKB format geometry and dictionaries of
+        key-value pairs into mapnik features. Return this from PythonDatasource.features() passing it a sequence of keys
+        to appear in the output and an iterator yielding features.
+
+        For example. One might have a features() method in a derived class like the following:
+
+        def features(self, query):
+            # ... create WKB features feat1 and feat2
+
+            return mapnik.PythonDatasource.wkb_features(
+                keys = ( 'name', 'author' ),
+                features = [
+                    (feat1, { 'name': 'feat1', 'author': 'alice' }),
+                    (feat2, { 'name': 'feat2', 'author': 'bob' }),
+                ]
+            )
+
+        """
         ctx = Context()
         [ctx.push(x) for x in keys]
 

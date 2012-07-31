@@ -7,6 +7,7 @@
 #include <vector>
 
 // boost
+#include <boost/foreach.hpp>
 #include <boost/make_shared.hpp>
 #include <boost/python.hpp>
 #include <boost/python/stl_iterator.hpp>
@@ -20,10 +21,19 @@ using mapnik::parameters;
 DATASOURCE_PLUGIN(python_datasource)
 
 python_datasource::python_datasource(parameters const& params, bool bind)
-: datasource(params),
+  : datasource(params),
     desc_(*params_.get<std::string>("type"), *params_.get<std::string>("encoding","utf-8")),
     factory_(*params_.get<std::string>("factory", ""))
 {
+    // extract any remaining parameters as keyword args for the factory
+    BOOST_FOREACH(const mapnik::parameters::value_type& kv, params_)
+    {
+        if((kv.first != "type") && (kv.first != "factory"))
+        {
+            kwargs_.insert(std::make_pair(kv.first, *params_.get<std::string>(kv.first)));
+        }
+    }
+
     if (bind)
     {
         this->bind();
@@ -91,8 +101,16 @@ void python_datasource::bind() const
         object callable_module = import(module_name);
         object callable = callable_module.attr(callable_name);
 
+        // prepare the arguments
+        dict kwargs;
+        typedef std::map<std::string, std::string>::value_type kv_type;
+        BOOST_FOREACH(const kv_type& kv, kwargs_)
+        {
+            kwargs[str(kv.first)] = str(kv.second);
+        }
+
         // get our wrapped data source
-        datasource_ = callable();
+        datasource_ = callable(*boost::python::make_tuple(), **kwargs);
     }
 
     is_bound_ = true;
@@ -108,10 +126,9 @@ mapnik::datasource::datasource_t python_datasource::type() const
 
     ensure_gil lock;
 
-    object py_type = datasource_.attr("data_type");
-
-    // FIXME: what do we do if the script doesn't give an int?
-    return static_cast<mapnik::datasource::datasource_t>(PyInt_AsLong(py_type.ptr()));
+    object data_type = datasource_.attr("data_type");
+    long data_type_integer = extract<long>(data_type);
+    return mapnik::datasource::datasource_t(data_type_integer);
 }
 
 mapnik::box2d<double> python_datasource::envelope() const
@@ -121,15 +138,7 @@ mapnik::box2d<double> python_datasource::envelope() const
     if (!is_bound_) bind();
 
     ensure_gil lock;
-
-    // envelope is a sequence of (minx, miny, maxx, maxy)
-    stl_input_iterator<double> envelope_it(datasource_.attr("envelope"));
-    return mapnik::box2d<double>(
-            *(envelope_it),
-            *(++envelope_it),
-            *(++envelope_it),
-            *(++envelope_it)
-    );
+    return extract<mapnik::box2d<double> >(datasource_.attr("envelope"));
 }
 
 boost::optional<mapnik::datasource::geometry_t> python_datasource::get_geometry_type() const
@@ -152,8 +161,8 @@ boost::optional<mapnik::datasource::geometry_t> python_datasource::get_geometry_
     if (py_geometry_type.ptr() == object().ptr())
         return return_type();
 
-    // FIXME: what do we do if the script doesn't give an int?
-    return static_cast<mapnik::datasource::geometry_t>(PyInt_AsLong(py_geometry_type.ptr()));
+    long geom_type_integer = extract<long>(py_geometry_type);
+    return mapnik::datasource::geometry_t(geom_type_integer);
 }
 
 mapnik::featureset_ptr python_datasource::features(mapnik::query const& q) const

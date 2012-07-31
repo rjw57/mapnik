@@ -48,6 +48,7 @@ private:
     static const char* name_;
     mutable mapnik::layer_descriptor desc_;
     const std::string factory_;
+    std::map<std::string, std::string> kwargs_;
     mutable boost::python::object datasource_;
 };
 
